@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   build-web:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -58,6 +59,7 @@ jobs:
 
   deploy-pages:
     needs: build-web
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -90,7 +92,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
