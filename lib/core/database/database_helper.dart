@@ -18,7 +18,7 @@ class DatabaseHelper {
   static DatabaseFactory? _dbFactory;
 
   static const String _scholarDbUrl =
-      'https://github.com/hiteshharidevan-NoCode5/openlex/releases/download/v1.0.0-scholar/lexicon_700k.db.gz';
+      'https://github.com/hiteshharidevan-NoCode5/openlex/releases/download/v1.0.1/lexicon_700k.db.gz';
 
   DatabaseHelper._init();
 
