@@ -348,6 +348,19 @@ class _SearchScreenState extends State<SearchScreen> {
                 controller: _searchController,
                 style: const TextStyle(color: Colors.white),
                 onChanged: _onSearchChanged,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (value) {
+                  final query = value.trim().toLowerCase();
+                  if (query.isEmpty) return;
+                  _searchFocusNode.unfocus();
+                  if (_suggestions.isNotEmpty) {
+                    final match = _suggestions.firstWhere(
+                      (item) => (item['word'] as String).toLowerCase() == query,
+                      orElse: () => _suggestions.first,
+                    );
+                    _selectWord(match['id']);
+                  }
+                },
                 decoration: InputDecoration(
                   hintText: _isAdvanced ? "Search Scholar vocabulary..." : "Type or speak a word...",
                   hintStyle: const TextStyle(color: Colors.white54),
