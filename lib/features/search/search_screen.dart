@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/database/database_helper.dart';
 import '../../core/tts/tts_service.dart';
@@ -13,13 +15,57 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  late final FocusNode _searchFocusNode;
+  int _selectedIndex = -1;
   List<Map<String, dynamic>> _suggestions = [];
   WordEntry? _selectedWord;
   bool _isAdvanced = false;
   bool _isIncognito = true;
   bool _isListening = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode = FocusNode(onKeyEvent: (node, event) {
+      if (_suggestions.isEmpty) return KeyEventResult.ignored;
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          setState(() {
+            if (_selectedIndex < _suggestions.length - 1) {
+              _selectedIndex++;
+            }
+          });
+          return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          setState(() {
+            if (_selectedIndex > 0) {
+              _selectedIndex--;
+            } else {
+              _selectedIndex = -1;
+            }
+          });
+          return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+                   event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+          if (_selectedIndex >= 0 && _selectedIndex < _suggestions.length) {
+            _selectWord(_suggestions[_selectedIndex]['id']);
+            return KeyEventResult.handled;
+          }
+        }
+      }
+      return KeyEventResult.ignored;
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _onSearchChanged(String query) async {
+    setState(() => _selectedIndex = -1);
     if (query.trim().isEmpty) {
       setState(() {
         _suggestions = [];
@@ -47,8 +93,136 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  void _setMode(bool isAdvanced) {
+  void _setMode(bool isAdvanced) async {
     if (_isAdvanced == isAdvanced) return;
+
+    if (isAdvanced) {
+      final downloaded = await DatabaseHelper.instance.isAdvancedDownloaded();
+      final needsUpdate = downloaded && await DatabaseHelper.instance.checkScholarUpdateAvailable();
+
+      if (!downloaded || needsUpdate) {
+        if (!mounted) return;
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            title: Text(
+              needsUpdate ? "Update Scholar Lexicon?" : "Download Scholar Lexicon?",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              needsUpdate
+                  ? "A new version of the 700k Scholar Lexicon is available. Would you like to update now (~70 MB)?"
+                  : "Scholar mode provides 700k+ literary, medical, and comprehensive definitions (~70 MB). Stored locally for offline access.",
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(needsUpdate ? "Later" : "Cancel", style: const TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(
+                  needsUpdate ? "Update Now" : "Download (70 MB)",
+                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm != true) {
+          if (needsUpdate) {
+            // Allow using the currently installed lexicon if user selects Later
+          } else {
+            return;
+          }
+        } else {
+          if (needsUpdate) {
+            await DatabaseHelper.instance.deleteAdvancedDatabase();
+          }
+        if (!mounted) return;
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            title: const Text('Download Scholar Lexicon?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: const Text(
+              'Scholar mode provides 700k+ literary, medical, and comprehensive definitions (~70 MB). Stored locally for offline access.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Download (70 MB)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm != true) return;
+
+        double progress = 0.0;
+        StreamSubscription<double>? sub;
+        if (!mounted) return;
+
+        final success = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              sub ??= DatabaseHelper.instance.downloadAdvancedDatabase().listen(
+                (p) {
+                  setDialogState(() => progress = p);
+                },
+                onDone: () {
+                  if (ctx.mounted) Navigator.pop(ctx, true);
+                },
+                onError: (err) {
+                  if (ctx.mounted) {
+                    if (ctx.mounted) Navigator.pop(ctx, false);
+                  }
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Download failed: $err')),
+                    );
+                  }
+                },
+              );
+
+              return AlertDialog(
+                backgroundColor: const Color(0xFF1E293B),
+                title: const Text('Downloading Scholar Lexicon', style: TextStyle(color: Colors.white)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LinearProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('${(progress * 100).toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white70)),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+
+        await sub?.cancel();
+        if (success != true) return;
+        }
+      }
+    }
+
     setState(() {
       _isAdvanced = isAdvanced;
       _selectedWord = null;
@@ -170,6 +344,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               const SizedBox(height: 16),
               TextField(
+                focusNode: _searchFocusNode,
                 controller: _searchController,
                 style: const TextStyle(color: Colors.white),
                 onChanged: _onSearchChanged,
@@ -199,8 +374,16 @@ class _SearchScreenState extends State<SearchScreen> {
                         itemCount: _suggestions.length,
                         itemBuilder: (context, index) {
                           final item = _suggestions[index];
+                          final isSelected = index == _selectedIndex;
                           return Card(
-                            color: cardBg,
+                            color: isSelected ? const Color(0xFF334155) : cardBg,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: isSelected ? accentAmber : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             child: ListTile(
                               title: Text(

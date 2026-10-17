@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' show Directory, File;
 import 'package:flutter/foundation.dart';
@@ -84,7 +85,7 @@ class DatabaseHelper {
 
       yield 0.90;
       debugPrint('[OpenLex DB] Decompressing 70MB gzip stream...');
-      final decompressedList = GZipDecoder().decodeBytes(compressedBytes);
+      final decompressedList = const GZipDecoder().decodeBytes(compressedBytes);
       final totalBytes = Uint8List.fromList(decompressedList);
       debugPrint('[OpenLex DB] Uncompressed SQLite size: ${totalBytes.length} bytes');
 
@@ -96,10 +97,15 @@ class DatabaseHelper {
         await factory.writeDatabaseBytes(path, totalBytes);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('scholar_db_downloaded', true);
+        final remoteVer = await fetchRemoteScholarVersion() ?? 1;
+        await prefs.setInt(_scholarVersionKey, remoteVer);
         _advancedDb = null;
       } else {
         final file = File(path);
         await file.writeAsBytes(totalBytes, flush: true);
+        final prefs = await SharedPreferences.getInstance();
+        final remoteVer = await fetchRemoteScholarVersion() ?? 1;
+        await prefs.setInt(_scholarVersionKey, remoteVer);
       }
 
       yield 1.0;
@@ -107,6 +113,37 @@ class DatabaseHelper {
     } finally {
       client.close();
     }
+  }
+
+  static const String _scholarVersionKey = 'scholar_db_version';
+
+  Future<int> getLocalScholarVersion() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_scholarVersionKey) ?? 0;
+  }
+
+  Future<int?> fetchRemoteScholarVersion() async {
+    try {
+      final uri = kIsWeb
+          ? Uri.base.resolve('assets/db/version.json')
+          : Uri.parse('https://raw.githubusercontent.com/hiteshharidevan-NoCode5/openlex/main/assets/db/version.json');
+      final response = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['version'] as int?;
+      }
+    } catch (e) {
+      debugPrint('[OpenLex DB] Unable to check remote version: $e');
+    }
+    return null;
+  }
+
+  Future<bool> checkScholarUpdateAvailable() async {
+    if (!await isAdvancedDownloaded()) return false;
+    final remoteVersion = await fetchRemoteScholarVersion();
+    if (remoteVersion == null) return false;
+    final localVersion = await getLocalScholarVersion();
+    return remoteVersion > localVersion;
   }
 
   Future<void> deleteAdvancedDatabase() async {
@@ -119,6 +156,7 @@ class DatabaseHelper {
       await factory.deleteDatabase(path);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('scholar_db_downloaded', false);
+      await prefs.remove(_scholarVersionKey);
     } else {
       final file = File(path);
       if (await file.exists()) {
@@ -170,6 +208,7 @@ class DatabaseHelper {
   }) async {
     final cleanQuery = query.trim().toLowerCase();
     if (cleanQuery.isEmpty) return [];
+    final strippedQuery = cleanQuery.replaceAll(RegExp(r"['\.\-_ ]"), "");
 
     try {
       final db = await _getDatabase(isAdvanced: isAdvanced);
@@ -180,6 +219,25 @@ class DatabaseHelper {
         ORDER BY LENGTH(word) ASC, word ASC 
         LIMIT ?
       ''', ['$cleanQuery%', limit]);
+
+      if (results.length < limit && strippedQuery.isNotEmpty && strippedQuery != cleanQuery) {
+        final secondary = await db.rawQuery('''
+          SELECT id, word, ipa 
+          FROM words 
+          WHERE word_lower LIKE ? 
+          ORDER BY LENGTH(word) ASC, word ASC 
+          LIMIT ?
+        ''', ['$strippedQuery%', limit - results.length]);
+
+        final seenIds = results.map((r) => r["id"]).toSet();
+        final combined = List<Map<String, dynamic>>.from(results);
+        for (final row in secondary) {
+          if (!seenIds.contains(row["id"])) {
+            combined.add(row);
+          }
+        }
+        return combined;
+      }
       return results;
     } catch (e, stack) {
       debugPrint('[OpenLex ERROR] Failed search in ${isAdvanced ? "Scholar" : "Core"}: $e');
