@@ -2,18 +2,18 @@
 
 A simple, fast, distraction-free dictionary app.
 
-OpenLex works completely offline. It doesn't track you, doesn't require an account, and gives you definitions the instant you type.
+OpenLex works completely offline. It does not track you, does not require an account, and gives you definitions the instant you type.
 
 ---
 
 ## What makes it different?
 
-* **Completely Private:** No signups, no logins, and no internet required. Your searches stay on your device.
-* **Two Reading Levels:**
-  * **Core Mode:** Everyday, clear definitions for general reading.
-  * **Scholar Mode:** Richer, literary, and advanced vocabulary.
-* **Instant Search:** Finds words and meanings instantly as you type.
-* **Use It Anywhere:** Use it directly in your web browser or install it on your Android phone.
+- **Completely Private:** No signups, no logins, and no internet required. Your searches stay on your device.
+- **Two Reading Levels:**
+  - **Core Mode:** Everyday, clear definitions for general reading.
+  - **Scholar Mode:** Richer, literary, and advanced vocabulary.
+- **Instant Search:** Finds words and meanings instantly as you type.
+- **Use It Anywhere:** Use it directly in your web browser or install it on your Android phone.
 
 ---
 
@@ -31,8 +31,8 @@ OpenLex works completely offline. It doesn't track you, doesn't require an accou
 1. Download **`OpenLex.apk`** from the [Latest Release page](https://github.com/hiteshharidevan-NoCode5/openlex/releases/latest).
 2. Tap the downloaded file to install it.
 3. If your phone asks for permission to install:
-   * Tap **Settings** and allow installs from your browser or file manager.
-   * If Google Play Protect shows a pop-up, tap **More details** and then **Install anyway**.
+   - Tap **Settings** and allow installs from your browser or file manager.
+   - If Google Play Protect shows a pop-up, tap **More details** and then **Install anyway**.
 4. Open OpenLex and start looking up words.
 
 ---
@@ -41,9 +41,9 @@ OpenLex works completely offline. It doesn't track you, doesn't require an accou
 
 If you prefer not to download a file, you can save the website to your home screen:
 
-* **On Android (Chrome):** Open the website, tap the three dots in the top right, and tap **Install app** or **Add to Home screen**.
-* **On iPhone / iPad (Safari):** Open the website, tap the **Share** button at the bottom, and tap **Add to Home Screen**.
-* **On Computer (Chrome / Edge):** Click the small **Install** icon on the right side of the web address bar.
+- **On Android (Chrome):** Open the website, tap the three dots in the top right, and tap **Install app** or **Add to Home screen**.
+- **On iPhone / iPad (Safari):** Open the website, tap the **Share** button at the bottom, and tap **Add to Home Screen**.
+- **On Computer (Chrome / Edge):** Click the small **Install** icon on the right side of the web address bar.
 
 ---
 
