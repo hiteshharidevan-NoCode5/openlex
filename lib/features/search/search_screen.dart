@@ -55,6 +55,9 @@ class _SearchScreenState extends State<SearchScreen> {
       }
       return KeyEventResult.ignored;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkDeepLink();
+    });
   }
 
   @override
@@ -62,6 +65,32 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  
+  void _checkDeepLink() async {
+    final uri = Uri.base;
+    final query = uri.queryParameters['q'];
+    if (query == null || query.trim().isEmpty) return;
+
+    final trimmed = query.trim();
+    _searchController.text = trimmed;
+
+    final results = await DatabaseHelper.instance.searchPrefix(
+      trimmed,
+      isAdvanced: _isAdvanced,
+    );
+
+    if (results.isNotEmpty && mounted) {
+      final exactMatch = results.firstWhere(
+        (item) => (item['word'] ?? "").toString().toLowerCase() == trimmed.toLowerCase(),
+        orElse: () => results.first,
+      );
+
+      if (exactMatch.containsKey('id')) {
+        _selectWord(exactMatch['id'] as int);
+      }
+    }
   }
 
   void _onSearchChanged(String query) async {
@@ -80,6 +109,9 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _suggestions = results;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkDeepLink();
+    });
   }
 
   void _selectWord(int id) async {
@@ -90,6 +122,9 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _selectedWord = entry;
       _suggestions = [];
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkDeepLink();
     });
   }
 
