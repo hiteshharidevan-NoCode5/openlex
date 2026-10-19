@@ -199,48 +199,94 @@ class DatabaseHelper {
     }
 
     return await factory.openDatabase(path);
+  }  Future<List<Map<String, dynamic>>> _queryWordsFromDb(
+    Database db,
+    String cleanQuery,
+    String strippedQuery,
+    int limit,
+    bool isAdv,
+  ) async {
+    final rawResults = await db.rawQuery('''
+      SELECT id, word, ipa 
+      FROM words 
+      WHERE word_lower LIKE ? 
+      ORDER BY LENGTH(word) ASC, word ASC 
+      LIMIT ?
+    ''', ['$cleanQuery%', limit]);
+
+    List<Map<String, dynamic>> results = rawResults.map((r) => {
+      ...r,
+      'isAdvanced': isAdv,
+    }).toList();
+
+    if (results.length < limit && strippedQuery.isNotEmpty && strippedQuery != cleanQuery) {
+      final secondary = await db.rawQuery('''
+        SELECT id, word, ipa 
+        FROM words 
+        WHERE word_lower LIKE ? 
+        ORDER BY LENGTH(word) ASC, word ASC 
+        LIMIT ?
+      ''', ['$strippedQuery%', limit - results.length]);
+
+      final seenIds = results.map((r) => r["id"]).toSet();
+      for (final row in secondary) {
+        if (!seenIds.contains(row["id"])) {
+          results.add({
+            ...row,
+            'isAdvanced': isAdv,
+          });
+        }
+      }
+    }
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> searchPrefix(
     String query, {
     int limit = 15,
-    bool isAdvanced = false,
+    bool? isAdvanced,
   }) async {
     final cleanQuery = query.trim().toLowerCase();
     if (cleanQuery.isEmpty) return [];
     final strippedQuery = cleanQuery.replaceAll(RegExp(r"['\.\-_ ]"), "");
 
     try {
-      final db = await _getDatabase(isAdvanced: isAdvanced);
-      final results = await db.rawQuery('''
-        SELECT id, word, ipa 
-        FROM words 
-        WHERE word_lower LIKE ? 
-        ORDER BY LENGTH(word) ASC, word ASC 
-        LIMIT ?
-      ''', ['$cleanQuery%', limit]);
-
-      if (results.length < limit && strippedQuery.isNotEmpty && strippedQuery != cleanQuery) {
-        final secondary = await db.rawQuery('''
-          SELECT id, word, ipa 
-          FROM words 
-          WHERE word_lower LIKE ? 
-          ORDER BY LENGTH(word) ASC, word ASC 
-          LIMIT ?
-        ''', ['$strippedQuery%', limit - results.length]);
-
-        final seenIds = results.map((r) => r["id"]).toSet();
-        final combined = List<Map<String, dynamic>>.from(results);
-        for (final row in secondary) {
-          if (!seenIds.contains(row["id"])) {
-            combined.add(row);
-          }
-        }
-        return combined;
+      if (isAdvanced != null) {
+        final db = await _getDatabase(isAdvanced: isAdvanced);
+        return await _queryWordsFromDb(db, cleanQuery, strippedQuery, limit, isAdvanced);
       }
-      return results;
+
+      final coreDb = await _getDatabase(isAdvanced: false);
+      final coreResults = await _queryWordsFromDb(coreDb, cleanQuery, strippedQuery, limit, false);
+
+      final hasScholar = await isAdvancedDownloaded();
+      if (!hasScholar || coreResults.length >= limit) {
+        return coreResults;
+      }
+
+      final scholarDb = await _getDatabase(isAdvanced: true);
+      final scholarResults = await _queryWordsFromDb(
+        scholarDb,
+        cleanQuery,
+        strippedQuery,
+        limit,
+        true,
+      );
+
+      final seenWords = coreResults.map((r) => (r["word"] as String).toLowerCase()).toSet();
+      final combined = List<Map<String, dynamic>>.from(coreResults);
+
+      for (final row in scholarResults) {
+        final w = (row["word"] as String).toLowerCase();
+        if (!seenWords.contains(w)) {
+          seenWords.add(w);
+          combined.add(row);
+          if (combined.length >= limit) break;
+        }
+      }
+      return combined;
     } catch (e, stack) {
-      debugPrint('[OpenLex ERROR] Failed search in ${isAdvanced ? "Scholar" : "Core"}: $e');
+      debugPrint('[OpenLex ERROR] Failed search: $e');
       debugPrint(stack.toString());
       return [];
     }

@@ -48,7 +48,7 @@ class _SearchScreenState extends State<SearchScreen> {
         } else if (event.logicalKey == LogicalKeyboardKey.enter ||
                    event.logicalKey == LogicalKeyboardKey.numpadEnter) {
           if (_selectedIndex >= 0 && _selectedIndex < _suggestions.length) {
-            _selectWord(_suggestions[_selectedIndex]['id']);
+            _selectWord(_suggestions[_selectedIndex]['id'], isAdvanced: _suggestions[_selectedIndex]['isAdvanced'] ?? false);
             return KeyEventResult.handled;
           }
         }
@@ -78,7 +78,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     final results = await DatabaseHelper.instance.searchPrefix(
       trimmed,
-      isAdvanced: _isAdvanced,
+      
     );
 
     if (results.isNotEmpty && mounted) {
@@ -88,7 +88,7 @@ class _SearchScreenState extends State<SearchScreen> {
       );
 
       if (exactMatch.containsKey('id')) {
-        _selectWord(exactMatch['id'] as int);
+        _selectWord(exactMatch['id'] as int, isAdvanced: exactMatch['isAdvanced'] ?? false);
       }
     }
   }
@@ -104,7 +104,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
     final results = await DatabaseHelper.instance.searchPrefix(
       query,
-      isAdvanced: _isAdvanced,
+      
     );
     setState(() {
       _suggestions = results;
@@ -114,10 +114,10 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  void _selectWord(int id) async {
+  void _selectWord(int id, {bool isAdvanced = false}) async {
     final entry = await DatabaseHelper.instance.getWordDetails(
       id,
-      isAdvanced: _isAdvanced,
+      isAdvanced: isAdvanced,
     );
     setState(() {
       _selectedWord = entry;
@@ -327,57 +327,37 @@ class _SearchScreenState extends State<SearchScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _setMode(false),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: !_isAdvanced ? accentAmber : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            "Simple (Core)",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: !_isAdvanced ? Colors.black : Colors.white70,
-                            ),
+              FutureBuilder<bool>(
+                future: DatabaseHelper.instance.isAdvancedDownloaded(),
+                builder: (context, snapshot) {
+                  final isDownloaded = snapshot.data ?? false;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ActionChip(
+                        avatar: Icon(
+                          isDownloaded ? Icons.check_circle_outline : Icons.cloud_download_outlined,
+                          size: 16,
+                          color: isDownloaded ? Colors.greenAccent : accentAmber,
+                        ),
+                        label: Text(
+                          isDownloaded ? "Expanded Lexicon Active" : "Expand Lexicon (+700k)",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDownloaded ? Colors.white70 : accentAmber,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
+                        backgroundColor: cardBg,
+                        side: BorderSide.none,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        onPressed: () => _setMode(true),
                       ),
                     ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _setMode(true),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _isAdvanced ? accentAmber : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            "Advanced (Scholar)",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _isAdvanced ? Colors.black : Colors.white70,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-              const SizedBox(height: 16),
               TextField(
                 focusNode: _searchFocusNode,
                 controller: _searchController,
@@ -392,7 +372,7 @@ class _SearchScreenState extends State<SearchScreen> {
               if (candidates.isEmpty) {
                 candidates = await DatabaseHelper.instance.searchPrefix(
                   query,
-                  isAdvanced: _isAdvanced,
+                  
                 );
               }
               if (candidates.isNotEmpty) {
@@ -400,11 +380,11 @@ class _SearchScreenState extends State<SearchScreen> {
                   (item) => (item['word'] as String).toLowerCase() == query,
                   orElse: () => candidates.first,
                 );
-                _selectWord(match['id']);
+                _selectWord(match['id'], isAdvanced: match['isAdvanced'] ?? false);
               }
             },
                 decoration: InputDecoration(
-                  hintText: _isAdvanced ? "Search Scholar vocabulary..." : "Type or speak a word...",
+                  hintText: "Search words, definitions...",
                   hintStyle: const TextStyle(color: Colors.white54),
                   prefixIcon: const Icon(Icons.search, color: Colors.white70),
                   suffixIcon: IconButton(
