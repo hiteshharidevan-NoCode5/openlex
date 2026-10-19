@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -22,10 +23,28 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isAdvanced = false;
   bool _isIncognito = true;
   bool _isListening = false;
+  bool _isTealTheme = false;
+  Color get currentAccent => _isTealTheme ? const Color(0xFF14B8A6) : const Color(0xFFF59E0B);
+
+  Future<void> _loadThemePref() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isTealTheme = prefs.getBool('pref_teal_theme') ?? false;
+    });
+  }
+
+  Future<void> _toggleTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isTealTheme = !_isTealTheme;
+    });
+    await prefs.setBool('pref_teal_theme', _isTealTheme);
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadThemePref();
     _searchFocusNode = FocusNode(onKeyEvent: (node, event) {
       if (_suggestions.isEmpty) return KeyEventResult.ignored;
       if (event is KeyDownEvent) {
@@ -157,7 +176,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Text(needsUpdate ? "Later" : "Cancel", style: const TextStyle(color: Colors.white54)),
               ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+                style: ElevatedButton.styleFrom(backgroundColor: currentAccent),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: Text(
                   needsUpdate ? "Update Now" : "Download (70 MB)",
@@ -194,7 +213,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
               ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+                style: ElevatedButton.styleFrom(backgroundColor: currentAccent),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('Download (70 MB)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
               ),
@@ -241,7 +260,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     LinearProgressIndicator(
                       value: progress > 0 ? progress : null,
                       backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                      valueColor: AlwaysStoppedAnimation<Color>(currentAccent),
                     ),
                     const SizedBox(height: 16),
                     Text('${(progress * 100).toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white70)),
@@ -292,7 +311,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     const primaryBg = Color(0xFF0F172A);
     const cardBg = Color(0xFF1E293B);
-    const accentAmber = Color(0xFFF59E0B);
+    final accentAmber = currentAccent;
 
     return Scaffold(
       backgroundColor: primaryBg,
@@ -304,6 +323,14 @@ class _SearchScreenState extends State<SearchScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Colors.white),
         ),
         actions: [
+          IconButton(
+            tooltip: _isTealTheme ? "Switch to Amber Theme" : "Switch to Teal Theme",
+            icon: Icon(
+              Icons.palette_outlined,
+              color: currentAccent,
+            ),
+            onPressed: _toggleTheme,
+          ),
           IconButton(
             tooltip: _isIncognito ? "Incognito Active (No History)" : "History Enabled",
             icon: Icon(
@@ -426,7 +453,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                               ),
                               subtitle: item['ipa'] != null
-                                  ? Text(item['ipa'], style: const TextStyle(color: accentAmber))
+                                  ? Text(item['ipa'], style: TextStyle(color: accentAmber))
                                   : null,
                               onTap: () => _selectWord(item['id']),
                             ),
