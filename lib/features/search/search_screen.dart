@@ -23,22 +23,36 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isAdvanced = false;
   bool _isIncognito = true;
   bool _isListening = false;
-  bool _isTealTheme = false;
-  Color get currentAccent => _isTealTheme ? const Color(0xFF14B8A6) : const Color(0xFFF59E0B);
+  String _themeMode = 'amber'; // 'amber', 'teal', or 'wireframe'
+
+  bool get _isWireframe => _themeMode == 'wireframe';
+
+  Color get currentAccent {
+    if (_themeMode == 'wireframe') return const Color(0xFFFFFFFF);
+    if (_themeMode == 'teal') return const Color(0xFF14B8A6);
+    return const Color(0xFFF59E0B);
+  }
 
   Future<void> _loadThemePref() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isTealTheme = prefs.getBool('pref_teal_theme') ?? false;
+      _themeMode = prefs.getString('pref_theme_mode') ??
+          (prefs.getBool('pref_teal_theme') == true ? 'teal' : 'amber');
     });
   }
 
   Future<void> _toggleTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isTealTheme = !_isTealTheme;
+      if (_themeMode == 'amber') {
+        _themeMode = 'teal';
+      } else if (_themeMode == 'teal') {
+        _themeMode = 'wireframe';
+      } else {
+        _themeMode = 'amber';
+      }
     });
-    await prefs.setBool('pref_teal_theme', _isTealTheme);
+    await prefs.setString('pref_theme_mode', _themeMode);
   }
 
   @override
@@ -309,8 +323,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryBg = Color(0xFF0F172A);
-    const cardBg = Color(0xFF1E293B);
+    final primaryBg = _isWireframe ? const Color(0xFF000000) : const Color(0xFF0F172A);
+    final cardBg = _isWireframe ? const Color(0xFF0A0A0A) : const Color(0xFF1E293B);
     final accentAmber = currentAccent;
 
     return Scaffold(
@@ -324,7 +338,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: _isTealTheme ? "Switch to Amber Theme" : "Switch to Teal Theme",
+            tooltip: "Theme: ${_themeMode.toUpperCase()} (tap to switch)",
             icon: Icon(
               Icons.palette_outlined,
               color: currentAccent,
@@ -366,18 +380,23 @@ class _SearchScreenState extends State<SearchScreen> {
                         avatar: Icon(
                           isDownloaded ? Icons.check_circle_outline : Icons.cloud_download_outlined,
                           size: 16,
-                          color: isDownloaded ? Colors.greenAccent : accentAmber,
+                          color: _isWireframe
+                              ? Colors.white
+                              : (isDownloaded ? currentAccent : currentAccent),
                         ),
                         label: Text(
                           isDownloaded ? "Expanded Lexicon Active" : "Expand Lexicon (+700k)",
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDownloaded ? Colors.white70 : accentAmber,
+                            color: _isWireframe ? Colors.white : Colors.white70,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        backgroundColor: cardBg,
-                        side: BorderSide.none,
+                        backgroundColor: _isWireframe ? Colors.transparent : cardBg,
+                        side: BorderSide(
+                          color: _isWireframe ? const Color(0xFF4B5563) : Colors.transparent,
+                          width: _isWireframe ? 1.2 : 0.0,
+                        ),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         onPressed: () => _setMode(true),
                       ),
@@ -425,7 +444,24 @@ class _SearchScreenState extends State<SearchScreen> {
                   fillColor: cardBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(
+                      color: _isWireframe ? const Color(0xFF4B5563) : Colors.transparent,
+                      width: _isWireframe ? 1.5 : 0.0,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: _isWireframe ? const Color(0xFF4B5563) : Colors.transparent,
+                      width: _isWireframe ? 1.5 : 0.0,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: currentAccent,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -442,7 +478,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                               side: BorderSide(
-                                color: isSelected ? accentAmber : Colors.transparent,
+                                color: isSelected ? accentAmber : (_isWireframe ? const Color(0xFF334155) : Colors.transparent),
                                 width: 1.5,
                               ),
                             ),
@@ -479,7 +515,13 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildWordDetailCard(WordEntry entry, Color accent, Color cardBg) {
     return Card(
       color: cardBg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: _isWireframe ? const Color(0xFF4B5563) : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: ListView(
@@ -505,7 +547,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 IconButton(
                   iconSize: 36,
-                  icon: const Icon(Icons.volume_up_rounded, color: Colors.amber),
+                  icon: Icon(Icons.volume_up_rounded, color: accent),
                   onPressed: () => TtsService.instance.speak(entry.word),
                 ),
               ],
@@ -520,8 +562,12 @@ class _SearchScreenState extends State<SearchScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.white12,
-                        borderRadius: BorderRadius.circular(6),
+                        color: _isWireframe ? Colors.transparent : Colors.white12,
+                        borderRadius: BorderRadius.circular(_isWireframe ? 20 : 6),
+                        border: Border.all(
+                          color: _isWireframe ? const Color(0xFF6B7280) : Colors.transparent,
+                          width: 1.0,
+                        ),
                       ),
                       child: Text(
                         sense.partOfSpeech.toUpperCase(),
