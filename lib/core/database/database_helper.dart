@@ -210,7 +210,7 @@ class DatabaseHelper {
       SELECT id, word, ipa 
       FROM words 
       WHERE word_lower LIKE ? 
-      ORDER BY LENGTH(word) ASC, word ASC 
+      ORDER BY word_lower ASC 
       LIMIT ?
     ''', ['$cleanQuery%', limit]);
 
@@ -224,7 +224,7 @@ class DatabaseHelper {
         SELECT id, word, ipa 
         FROM words 
         WHERE word_lower LIKE ? 
-        ORDER BY LENGTH(word) ASC, word ASC 
+        ORDER BY word_lower ASC 
         LIMIT ?
       ''', ['$strippedQuery%', limit - results.length]);
 

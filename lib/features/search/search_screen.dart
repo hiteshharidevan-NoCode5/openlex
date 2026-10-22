@@ -15,6 +15,7 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  Timer? _searchDebounce;
   final TextEditingController _searchController = TextEditingController();
   late final FocusNode _searchFocusNode;
   int _selectedIndex = -1;
@@ -95,6 +96,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
@@ -126,24 +128,26 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  void _onSearchChanged(String query) async {
+  void _onSearchChanged(String query) {
     setState(() => _selectedIndex = -1);
-    if (query.trim().isEmpty) {
+    _searchDebounce?.cancel();
+
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
       setState(() {
         _suggestions = [];
         _selectedWord = null;
       });
       return;
     }
-    final results = await DatabaseHelper.instance.searchPrefix(
-      query,
-      
-    );
-    setState(() {
-      _suggestions = results;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkDeepLink();
+
+    _searchDebounce = Timer(const Duration(milliseconds: 200), () async {
+      final results = await DatabaseHelper.instance.searchPrefix(trimmed);
+      if (mounted && _searchController.text.trim() == trimmed) {
+        setState(() {
+          _suggestions = results;
+        });
+      }
     });
   }
 
