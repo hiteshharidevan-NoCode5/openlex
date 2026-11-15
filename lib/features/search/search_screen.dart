@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -372,9 +373,10 @@ class _SearchScreenState extends State<SearchScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
             children: [
-              FutureBuilder<bool>(
-                future: DatabaseHelper.instance.isAdvancedDownloaded(),
-                builder: (context, snapshot) {
+              if (!kIsWeb)
+                FutureBuilder<bool>(
+                  future: DatabaseHelper.instance.isAdvancedDownloaded(),
+                  builder: (context, snapshot) {
                   final isDownloaded = snapshot.data ?? false;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io' show Directory, File;
+import 'dart:io' show Directory, File, IOSink, gzip;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -51,13 +51,12 @@ class DatabaseHelper {
   }
 
   Stream<double> downloadAdvancedDatabase() async* {
+    if (kIsWeb) {
+      throw UnsupportedError('Scholar 700k database is only supported on native Android.');
+    }
     final client = http.Client();
     try {
-      final uri = kIsWeb
-          ? Uri.base.resolve('assets/db/lexicon_700k.db.gz')
-          : Uri.parse(_scholarDbUrl);
-
-      final request = http.Request('GET', uri);
+      final request = http.Request('GET', Uri.parse(_scholarDbUrl));
       final response = await client.send(request);
 
       if (response.statusCode != 200) {
@@ -66,50 +65,44 @@ class DatabaseHelper {
 
       final contentLength = response.contentLength ?? (70 * 1024 * 1024);
       int bytesReceived = 0;
-      final chunks = <List<int>>[];
 
-      await for (final chunk in response.stream) {
-        chunks.add(chunk);
-        bytesReceived += chunk.length;
-        if (contentLength > 0) {
-          yield (bytesReceived / contentLength) * 0.85;
-        }
-      }
-
-      final compressedBytes = Uint8List(bytesReceived);
-      int offset = 0;
-      for (final chunk in chunks) {
-        compressedBytes.setRange(offset, offset + chunk.length, chunk);
-        offset += chunk.length;
-      }
-
-      yield 0.90;
-      debugPrint('[OpenLex DB] Decompressing 70MB gzip stream...');
-      final decompressedList = const GZipDecoder().decodeBytes(compressedBytes);
-      final totalBytes = Uint8List.fromList(decompressedList);
-      debugPrint('[OpenLex DB] Uncompressed SQLite size: ${totalBytes.length} bytes');
-
-      yield 0.95;
       final path = await _getDbFilePath('scholar_dict.db');
+      final tempFile = File('$path.tmp');
+      final sink = tempFile.openWrite();
 
-      if (kIsWeb) {
-        debugPrint('[OpenLex DB] Writing to Web IndexedDB...');
-        await factory.writeDatabaseBytes(path, totalBytes);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('scholar_db_downloaded', true);
-        final remoteVer = await fetchRemoteScholarVersion() ?? 1;
-        await prefs.setInt(_scholarVersionKey, remoteVer);
-        _advancedDb = null;
-      } else {
-        final file = File(path);
-        await file.writeAsBytes(totalBytes, flush: true);
-        final prefs = await SharedPreferences.getInstance();
-        final remoteVer = await fetchRemoteScholarVersion() ?? 1;
-        await prefs.setInt(_scholarVersionKey, remoteVer);
+      // Measure compressed download progress while piping directly through gzip.decoder to disk
+      final progressStream = response.stream.map((chunk) {
+        bytesReceived += chunk.length;
+        return chunk;
+      });
+
+      final decompressionFuture = progressStream
+          .transform(gzip.decoder)
+          .pipe(sink);
+
+      while (bytesReceived < contentLength) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        if (contentLength > 0) {
+          yield (bytesReceived / contentLength).clamp(0.0, 0.95);
+        }
+        if (bytesReceived >= contentLength) break;
       }
+
+      await decompressionFuture;
+      yield 0.98;
+
+      if (await File(path).exists()) {
+        await File(path).delete();
+      }
+      await tempFile.rename(path);
+
+      final prefs = await SharedPreferences.getInstance();
+      final remoteVer = await fetchRemoteScholarVersion() ?? 1;
+      await prefs.setInt(_scholarVersionKey, remoteVer);
+      _advancedDb = null;
 
       yield 1.0;
-      debugPrint('[OpenLex DB] Scholar database ready.');
+      debugPrint('[OpenLex DB] Scholar database streamed to disk successfully.');
     } finally {
       client.close();
     }
