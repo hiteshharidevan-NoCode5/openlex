@@ -29,7 +29,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/db/simple_dict.db
+    - assets/db/advanced_dict.db
 
 flutter_launcher_icons:
   android: true

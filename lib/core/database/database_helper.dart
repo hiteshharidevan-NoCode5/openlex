@@ -182,12 +182,12 @@ class DatabaseHelper {
   }
 
   Future<Database> _initSimpleDB() async {
-    final path = await _getDbFilePath('simple_dict.db');
+    final path = await _getDbFilePath('core_advanced_v1.db');
 
     final exists = await factory.databaseExists(path);
     if (!exists) {
-      debugPrint('[OpenLex DB] Loading assets/db/simple_dict.db...');
-      ByteData data = await rootBundle.load('assets/db/simple_dict.db');
+      debugPrint('[OpenLex DB] Loading assets/db/advanced_dict.db...');
+      ByteData data = await rootBundle.load('assets/db/advanced_dict.db');
       Uint8List bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
 
       if (kIsWeb) {
