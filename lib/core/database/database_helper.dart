@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io' show Directory, File, IOSink, gzip;
+import 'dart:io' show Directory, File, gzip;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
-import 'package:archive/archive.dart';
 import '../../models/word_entry.dart';
 
 class DatabaseHelper {
