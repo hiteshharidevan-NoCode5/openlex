@@ -316,4 +316,18 @@ class DatabaseHelper {
       senses: senses,
     );
   }
+
+  Future<WordEntry?> getWordOfTheDay({int offset = 0}) async {
+    try {
+      final db = await _getDatabase(isAdvanced: false);
+      final r = await db.rawQuery("SELECT COUNT(*) AS c FROM words WHERE LENGTH(word)>=5 AND word GLOB '[A-Za-z]*'");
+      final t = (r.first['c'] as int?) ?? 0;
+      if (t == 0) return null;
+      final n = DateTime.now();
+      final s = n.year * 10000 + n.month * 100 + n.day;
+      final o = ((s * 2654435761) + offset).abs() % t;
+      final rows = await db.rawQuery("SELECT id FROM words WHERE LENGTH(word)>=5 AND word GLOB '[A-Za-z]*' LIMIT 1 OFFSET ?", [o]);
+      return rows.isEmpty ? null : await getWordDetails(rows.first['id'] as int, isAdvanced: false);
+    } catch (_) { return null; }
+  }
 }

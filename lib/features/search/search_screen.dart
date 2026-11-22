@@ -22,6 +22,8 @@ class _SearchScreenState extends State<SearchScreen> {
   int _selectedIndex = -1;
   List<Map<String, dynamic>> _suggestions = [];
   WordEntry? _selectedWord;
+  WordEntry? _wotd;
+  int _wotdOff = 0;
   bool _isAdvanced = false;
   bool _isIncognito = true;
   bool _isListening = false;
@@ -43,6 +45,8 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  Future<void> _loadWotd({int o = 0}) async { final e = await DatabaseHelper.instance.getWordOfTheDay(offset: o); if (mounted) setState(() { _wotdOff = o; _wotd = e; }); }
+
   Future<void> _toggleTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -61,6 +65,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _loadThemePref();
+    _loadWotd();
     _searchFocusNode = FocusNode(onKeyEvent: (node, event) {
       if (_suggestions.isEmpty) return KeyEventResult.ignored;
       if (event is KeyDownEvent) {
@@ -504,12 +509,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       )
                     : _selectedWord != null
                         ? _buildWordDetailCard(_selectedWord!, accentAmber, cardBg)
-                        : Center(
-                            child: Text(
-                              _isAdvanced ? "Scholar mode: literary & advanced lexicons." : "Offline, fast & zero tracking.",
-                              style: const TextStyle(color: Colors.white38),
-                            ),
-                          ),
+                        : _buildIdleView(currentAccent, cardBg),
               ),
             ],
           ),
@@ -600,5 +600,29 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildIdleView(Color ac, Color bg) {
+    final w = _wotd;
+    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      if (w != null) InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => setState(() => _selectedWord = w),
+        child: Container(width: double.infinity, padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _isWireframe ? const Color(0xFF4B5563) : ac.withOpacity(0.35), width: 1.5)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(_wotdOff == 0 ? 'WORD OF THE DAY' : 'RANDOM WORD', style: TextStyle(color: ac, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+              InkWell(onTap: () => _loadWotd(o: _wotdOff + 1), child: Icon(Icons.shuffle_rounded, size: 18, color: ac)),
+            ]),
+            const SizedBox(height: 6),
+            Text(w.word, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            if (w.ipa != null && w.ipa!.isNotEmpty) Text(w.ipa!, style: TextStyle(color: ac, fontSize: 13)),
+            if (w.senses.isNotEmpty) ...[const SizedBox(height: 8), Text('${w.senses.first.partOfSpeech} • ${w.senses.first.definition}', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 14))],
+          ]))),
+      const SizedBox(height: 20),
+      Text(_isAdvanced ? "Scholar mode: literary & advanced lexicons." : "Offline, fast & zero tracking.", style: const TextStyle(color: Colors.white38, fontSize: 13)),
+    ]);
   }
 }
